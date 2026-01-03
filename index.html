@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KAG Thika Mission | Stock Management</title>
+
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+
+<style>
+body{font-family:'Segoe UI',sans-serif;background:#f4f4f4;margin:0;}
+header{background:maroon;color:white;padding:15px;display:flex;align-items:center;gap:15px;}
+header img{height:80px;background:white;padding:5px;border-radius:8px;}
+.container{max-width:900px;margin:30px auto;background:white;padding:20px;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,.15);}
+h2{color:maroon;margin-bottom:10px;}
+input,select,button{width:100%;padding:10px;margin:6px 0;border-radius:6px;border:1px solid #ccc;font-size:1rem;}
+button{background:maroon;color:white;font-weight:bold;cursor:pointer;}
+button:hover{background:#800000;}
+#message{display:none;padding:10px;margin-top:10px;border-radius:6px;font-weight:bold;}
+.dept-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-top:20px;}
+.dept-card{border:2px solid maroon;padding:15px;border-radius:8px;text-align:center;cursor:pointer;transition:.3s;}
+.dept-card:hover,.dept-card.active{background:maroon;color:white;}
+.dept-card i{font-size:1.8rem;margin-bottom:6px;}
+table{width:100%;border-collapse:collapse;margin-top:15px;}
+th,td{border:1px solid maroon;padding:8px;text-align:center;}
+th{background:maroon;color:white;}
+@media(max-width:600px){header{flex-direction:column;align-items:flex-start;}}
+</style>
+</head>
+
+<body>
+
+<header>
+  <img src="./kag-logo.jpg" alt="KAG Logo">
+  <div>
+    <h1>KAG Thika Mission</h1>
+    <p>Stock Management System</p>
+  </div>
+</header>
+
+<div class="container">
+
+<h2>Update Stock</h2>
+
+<select id="updateDepartment">
+  <option value="">Select Department</option>
+  <option value="Hospitality">Hospitality</option>
+  <option value="Instruments">Instruments</option>
+  <option value="Ushering">Ushering</option>
+  <option value="Media">Media</option>
+  <option value="Others">Others</option>
+</select>
+
+<input type="text" id="itemName" placeholder="Item name">
+<input type="number" id="quantity" placeholder="Quantity">
+
+<select id="actionType">
+  <option value="add">Add</option>
+  <option value="remove">Remove</option>
+  <option value="broken">Broken / Destroyed</option>
+</select>
+
+<button onclick="updateStock()">Update Stock</button>
+<div id="message"></div>
+
+<h2>Select Department to View Stock</h2>
+
+<div class="dept-grid">
+  <div class="dept-card" onclick="viewDept('Hospitality')"><i class="fas fa-mug-hot"></i><div>Hospitality</div></div>
+  <div class="dept-card" onclick="viewDept('Instruments')"><i class="fas fa-guitar"></i><div>Instruments</div></div>
+  <div class="dept-card" onclick="viewDept('Ushering')"><i class="fas fa-user-tie"></i><div>Ushering</div></div>
+  <div class="dept-card" onclick="viewDept('Media')"><i class="fas fa-video"></i><div>Media</div></div>
+  <div class="dept-card" onclick="viewDept('Others')"><i class="fas fa-box"></i><div>Others</div></div>
+</div>
+
+<h2 id="deptTitle" style="display:none;"></h2>
+
+<table id="stockTableWrapper" style="display:none;">
+  <thead>
+    <tr>
+      <th>Item</th>
+      <th>Available</th>
+      <th>Broken</th>
+    </tr>
+  </thead>
+  <tbody id="stockTable"></tbody>
+</table>
+
+</div>
+
+<script>
+const SERVER_URL = "https://script.google.com/macros/s/AKfycbzNL4PzdekzPxkZ99oGW-H2Z8uCxgAlqG6CdC7hm21jgbrtrY5Zvber1cmuGh3yGMYEOA/exec";
+
+function showMessage(msg, error=false){
+  const m = document.getElementById("message");
+  m.innerText = msg;
+  m.style.display = "block";
+  m.style.background = error ? "#f8d7da" : "#d4edda";
+  m.style.color = error ? "#721c24" : "#155724";
+  setTimeout(()=>m.style.display="none",3000);
+}
+
+async function updateStock(){
+  const department = document.getElementById("updateDepartment").value;
+  const item = document.getElementById("itemName").value.trim().toLowerCase();
+  const qty = document.getElementById("quantity").value;
+  const action = document.getElementById("actionType").value;
+
+  if(!department || !item || !qty || qty<=0){
+    showMessage("Please fill all fields correctly",true);
+    return;
+  }
+
+  const formData = new URLSearchParams();
+  formData.append("department",department);
+  formData.append("item",item);
+  formData.append("qty",qty);
+  formData.append("action",action);
+
+  try{
+    const res = await fetch(SERVER_URL,{
+      method:"POST",
+      body:formData
+    });
+
+    const result = await res.json();
+
+    if(result.status==="success"){
+      showMessage(result.message);
+      viewDept(department);
+      document.getElementById("itemName").value="";
+      document.getElementById("quantity").value="";
+    }else{
+      showMessage(result.message,true);
+    }
+  }catch(e){
+    console.error(e);
+    showMessage("Failed to update stock",true);
+  }
+}
+
+async function viewDept(dept){
+  document.getElementById("deptTitle").innerText = dept+" Department Stock";
+  document.getElementById("deptTitle").style.display="block";
+  document.getElementById("stockTableWrapper").style.display="table";
+
+  try{
+    const res = await fetch(SERVER_URL+"?department="+encodeURIComponent(dept));
+    const data = await res.json();
+    const tbody = document.getElementById("stockTable");
+    tbody.innerHTML="";
+    data.forEach(r=>{
+      tbody.innerHTML+=`<tr>
+        <td>${r.item}</td>
+        <td>${r.available}</td>
+        <td>${r.broken}</td>
+      </tr>`;
+    });
+  }catch{
+    showMessage("Failed to load stock",true);
+  }
+}
+</script>
+
+</body>
+</html>
